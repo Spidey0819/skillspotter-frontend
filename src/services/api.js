@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Use direct URL to Flask backend
-const API_URL = 'https://ly5a1b11u9.execute-api.us-east-1.amazonaws.com/prod/api';
+const API_URL = 'https://5mm22qobsf.execute-api.us-east-1.amazonaws.com/prod/api';
 
 // Create an axios instance
 const api = axios.create({
