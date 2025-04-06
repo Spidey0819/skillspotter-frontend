@@ -1,13 +1,14 @@
 // src/services/api.js
 import axios from 'axios';
+import { config } from './config';
 
-// Use direct URL to Flask backend
-const API_URL = 'https://5mm22qobsf.execute-api.us-east-1.amazonaws.com/prod/api';
+// Use dynamic API URL
+const API_URL = config.apiUrl;
 
 // Create an axios instance
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true, // Important for session cookies
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,7 +29,6 @@ api.interceptors.response.use(
   },
   (error) => {
     // Only redirect on 401 if it's not the /auth/me endpoint
-    // This prevents redirect loops when checking auth status
     if (error.response && 
         error.response.status === 401 && 
         !error.config.url.includes('/auth/me')) {
