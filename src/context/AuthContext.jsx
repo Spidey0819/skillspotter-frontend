@@ -1,49 +1,102 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import api from '../services/api';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
+import { loginUser, registerUser, logoutUser, getCurrentUser } from '../services/auth';
+import { initializeConfig } from '../services/config';
 
-// Create context
+// Create the context
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState(null);
 
-  // Check if user is already authenticated on mount
+  // Initialize API configuration
   useEffect(() => {
-    const checkAuthStatus = async () => {
+    const initialize = async () => {
       try {
-        console.log("Checking auth status...");
-        setLoading(true);
-        const response = await api.get('/auth/me');
-        console.log("Auth check response:", response.data);
-        setCurrentUser(response.data);
+        await initializeConfig();
+        setInitialized(true);
       } catch (err) {
-        // User is not authenticated or there was an error
-        console.log("Auth check failed:", err.response?.status);
-        setCurrentUser(null);
-      } finally {
-        setLoading(false);
+        console.error('Failed to initialize API configuration:', err);
+        setError('Failed to connect to the server. Please try again later.');
       }
     };
 
-    checkAuthStatus();
+    initialize();
   }, []);
+
+  // Load user data on mount and when token changes
+  const loadUser = useCallback(async () => {
+    // Don't attempt to load user until API is initialized
+    if (!initialized) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        // No token means not authenticated
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      // Get current user from API
+      const userData = await getCurrentUser();
+      setUser(userData);
+    } catch (err) {
+      console.error('Failed to load user:', err);
+      
+      // Clear invalid tokens
+      if (err.response && err.response.status === 401) {
+        localStorage.removeItem('token');
+      }
+      
+      setUser(null);
+      setError('Authentication failed. Please log in again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [initialized]);
+
+  // Load user when component mounts and when initialized changes
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
 
   // Login function
   const login = async (email, password) => {
+    setLoading(true);
+    setError(null);
+
     try {
-      setError(null);
-      setLoading(true);
-      console.log("Attempting login for:", email);
-      const response = await api.post('/auth/login', { email, password });
-      console.log("Login successful:", response.data);
-      setCurrentUser(response.data.user);
-      return response.data;
+      // Ensure config is initialized
+      if (!initialized) {
+        await initializeConfig();
+        setInitialized(true);
+      }
+
+      const result = await loginUser(email, password);
+      
+      // Store token
+      if (result && result.token) {
+        localStorage.setItem('token', result.token);
+        setUser(result);
+      } else {
+        throw new Error('Authentication failed. No token received.');
+      }
+      
+      return result;
     } catch (err) {
-      console.error("Login failed:", err.response?.data);
-      setError(err.response?.data?.error || 'Login failed');
+      console.error('Login error:', err);
+      
+      const errorMessage = err.response?.data?.error || 
+                          'Login failed. Please check your credentials.';
+      setError(errorMessage);
       throw err;
     } finally {
       setLoading(false);
@@ -52,17 +105,33 @@ export const AuthProvider = ({ children }) => {
 
   // Register function
   const register = async (name, email, password) => {
+    setLoading(true);
+    setError(null);
+
     try {
-      setError(null);
-      setLoading(true);
-      console.log("Attempting registration for:", email);
-      const response = await api.post('/auth/register', { name, email, password });
-      console.log("Registration successful:", response.data);
-      setCurrentUser(response.data.user);
-      return response.data;
+      // Ensure config is initialized
+      if (!initialized) {
+        await initializeConfig();
+        setInitialized(true);
+      }
+
+      const result = await registerUser(name, email, password);
+      
+      // Store token
+      if (result && result.token) {
+        localStorage.setItem('token', result.token);
+        setUser(result);
+      } else {
+        throw new Error('Registration failed. No token received.');
+      }
+      
+      return result;
     } catch (err) {
-      console.error("Registration failed:", err.response?.data);
-      setError(err.response?.data?.error || 'Registration failed');
+      console.error('Registration error:', err);
+      
+      const errorMessage = err.response?.data?.error || 
+                          'Registration failed. Please try again.';
+      setError(errorMessage);
       throw err;
     } finally {
       setLoading(false);
@@ -71,54 +140,55 @@ export const AuthProvider = ({ children }) => {
 
   // Logout function
   const logout = async () => {
+    setLoading(true);
+    
     try {
-      setLoading(true);
-      console.log("Attempting logout");
-      await api.post('/auth/logout');
-      console.log("Logout API call successful");
+      await logoutUser();
+      setUser(null);
+      localStorage.removeItem('token');
     } catch (err) {
-      console.error("Logout API call failed:", err);
-      // Even if the API call fails, we'll still clear the user state
-    } finally {
-      // Always clear the user state and session data
-      setCurrentUser(null);
-      setLoading(false);
-      console.log("User state cleared after logout");
-    }
-  };
-
-  // Update profile function
-  const updateProfile = async (userData) => {
-    try {
-      setError(null);
-      setLoading(true);
-      const response = await api.put('/auth/profile', userData);
-      setCurrentUser({...currentUser, ...response.data});
-      return response.data;
-    } catch (err) {
-      setError(err.response?.data?.error || 'Profile update failed');
-      throw err;
+      console.error('Logout error:', err);
+      // Even if server logout fails, clear local state
+      setUser(null);
+      localStorage.removeItem('token');
     } finally {
       setLoading(false);
     }
   };
 
-  const value = {
-    currentUser,
+  // Check if user is authenticated
+  const isAuthenticated = () => {
+    return !!user && !!localStorage.getItem('token');
+  };
+
+  // Refresh user data
+  const refreshUser = async () => {
+    await loadUser();
+  };
+
+  // Context value
+  const contextValue = {
+    user,
     loading,
     error,
+    initialized,
     login,
     register,
     logout,
-    updateProfile,
+    isAuthenticated,
+    refreshUser
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-// Custom hook to use auth context
+// Custom hook for using the auth context
 export const useAuth = () => {
-  const context = useContext(AuthContext);
+  const context = React.useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
