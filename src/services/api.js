@@ -26,6 +26,35 @@ const createApi = async () => {
   }
 };
 
+// Factory function for creating API request functions - EXPORT THIS
+export const createApiRequest = (method, endpoint) => {
+  return async (data, headers = {}) => {
+    try {
+      const apiInstance = await createApi();
+
+      // Configure the request based on method
+      const config = {
+        url: endpoint,
+        method,
+        headers
+      };
+
+      // Add data based on method type
+      if (['post', 'put', 'patch'].includes(method.toLowerCase())) {
+        config.data = data;
+      } else if (data) {
+        config.params = data;
+      }
+
+      const response = await apiInstance(config);
+      return response.data;
+    } catch (error) {
+      console.error(`API ${method.toUpperCase()} ${endpoint} error:`, error);
+      throw error;
+    }
+  };
+};
+
 // Export methods that handle the async nature
 const api = {
   get: async (url, params, headers = {}) => {
