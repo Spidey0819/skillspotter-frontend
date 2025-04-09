@@ -4,7 +4,7 @@ import axios from 'axios';
 // Fetch API configuration from server-side config endpoint
 const fetchApiConfig = async () => {
   try {
-    const response = await axios.get('/api-config');
+    const response = await axios.get('/api');
     console.log('Loaded API configuration:', response.data);
     return response.data;
   } catch (error) {
