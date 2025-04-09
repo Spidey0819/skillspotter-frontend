@@ -1,13 +1,13 @@
 // src/services/resumes.js
-import api, { createApi } from './api';
+import api, { createApiRequest } from './api';
 import { config, initializeConfig } from './config';
 
 // Create reusable API requests
-const getResumesRequest = createApi('get', '/resumes');
-const getResumeByIdRequest = createApi('get', '/resumes/');
-const deleteResumeRequest = createApi('delete', '/resumes/');
-const getResumeSkillsRequest = createApi('get', '/resumes/');
-const getResumeMatchesRequest = createApi('get', '/resumes/');
+const getResumesRequest = createApiRequest('get', '/resumes');
+const getResumeByIdRequest = createApiRequest('get', '/resumes/');
+const deleteResumeRequest = createApiRequest('delete', '/resumes/');
+const getResumeSkillsRequest = createApiRequest('get', '/resumes/');
+const getResumeMatchesRequest = createApiRequest('get', '/resumes/');
 
 // Get all user resumes
 export const getUserResumes = async () => {
